@@ -1,46 +1,94 @@
-# Getting Started with Create React App
+# OK Loteamentos - Sistema de Gestão de Loteamentos Imobiliários
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 📋 Sobre o Projeto
 
-## Available Scripts
+OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários, desenvolvido para facilitar o controle, venda e acompanhamento de lotes em empreendimentos imobiliários. O sistema permite visualizar loteamentos em tempo real, gerenciar reservas e vendas, e manter comunicação entre todos os envolvidos no processo.
 
-In the project directory, you can run:
+## 🧩 Estrutura do Sistema
 
-### `npm start`
+### Perfis de Usuários
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+1. **Administrador**
+   - Acesso total ao sistema
+   - Cadastro e edição de loteamentos
+   - Criação de qualquer perfil de usuário
+   - Acesso a todos os relatórios e logs
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+2. **Gestor**
+   - Gestão de um ou mais loteamentos
+   - Cadastro de vendedores e assistentes
+   - Aprovação ou cancelamento de vendas e reservas
 
-### `npm test`
+3. **Assistente**
+   - Auxiliar do Gestor com permissões atribuídas via checkbox
+   - Pode cancelar reservas (se autorizado)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+4. **Vendedor**
+   - Visualiza apenas os loteamentos atribuídos
+   - Pode reservar até 3 lotes simultaneamente
+   - Pode estar na fila de até 5 lotes
 
-### `npm run build`
+## 🚀 Funcionalidades Principais
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **Visualização Interativa**: Mapa visual dos lotes com status por cores
+- **Sistema de Reservas**: Gerenciamento de reservas com prazo de validade
+- **Fila de Espera**: Sistema automático para gerenciar interessados em lotes já reservados
+- **Dashboard**: Relatórios e gráficos com métricas importantes
+- **Chat Interno**: Comunicação entre os usuários do sistema
+- **Notificações**: Avisos por email, WhatsApp e no próprio sistema
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 💻 Tecnologias Utilizadas
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- **Frontend**: React com TypeScript e Tailwind CSS
+- **UI Components**: Headless UI e Hero Icons
+- **Gráficos**: Chart.js
+- **Formulários**: Formik e Yup
+- **Notificações**: react-hot-toast
 
-### `npm run eject`
+## 🛠️ Instruções para Executar
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Pré-requisitos
+- Node.js (versão 14 ou superior)
+- npm ou yarn
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Instalação e Execução
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+1. Clone o repositório:
+   ```
+   git clone [URL_DO_REPOSITÓRIO]
+   cd ok_lotes
+   ```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+2. Instale as dependências:
+   ```
+   npm install
+   ```
+   ou
+   ```
+   yarn install
+   ```
 
-## Learn More
+3. Inicie o servidor de desenvolvimento:
+   ```
+   npm start
+   ```
+   ou
+   ```
+   yarn start
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+4. Acesse o sistema no navegador:
+   [http://localhost:3000](http://localhost:3000)
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 📱 Acessos para Teste
+
+Utilize os seguintes emails com qualquer senha (mínimo 6 caracteres):
+
+- **admin@oklotes.com** - Acesso Administrador (administrador do sistema)
+- **gestor@oklotes.com** - Acesso Gestor (cliente que contratou o sistema)
+- **assistente@oklotes.com** - Acesso Assistente (auxiliar do gestor)
+- **vendedor@oklotes.com** - Acesso Vendedor (corretor imobiliário)
+
+## 📝 Licença
+
+Desenvolvido como sistema experimental para fins de demonstração.
