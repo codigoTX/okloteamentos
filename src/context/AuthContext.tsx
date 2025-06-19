@@ -52,16 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Carregar perfil do usuário
         loadUserProfile(session.user.id);
       } else {
-        // Verificar se existe um usuário no localStorage (modo de demonstração)
-        const localUser = localStorage.getItem('user');
-        if (localUser) {
-          try {
-            const userData = JSON.parse(localUser);
-            setProfile(userData as UserProfile);
-          } catch (e) {
-            console.error('Erro ao carregar usuário do localStorage:', e);
-          }
-        }
         setLoading(false);
       }
     });
@@ -80,130 +70,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
     
-    // Listener para o modo de demonstração
-    const handleDemoAuth = (e: CustomEvent) => {
-      console.log('Demo auth event recebido:', e.detail);
-      if (e.detail && e.detail.profile) {
-        setProfile(e.detail.profile as UserProfile);
-        setLoading(false);
-      }
-    };
     
-    // Adicionar o listener de evento personalizado
-    window.addEventListener('supabase-demo-auth', handleDemoAuth as EventListener);
 
     // Limpar subscriptions ao desmontar
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener('supabase-demo-auth', handleDemoAuth as EventListener);
+      
     };
   }, []);
 
   // Carregar perfil do usuário
   const loadUserProfile = async (userId: string) => {
+    setLoading(true);
     try {
-      console.log('=== ETAPA 1: BUSCANDO PERFIL DO USUÁRIO NO SUPABASE ===');
-      console.log('Buscando perfil para o ID:', userId);
-      
-      // Tentar obter o email do usuário da autenticação
-      const { data: userData } = await supabase.auth.getUser();
-      const userEmail = userData?.user?.email;
-      console.log('Email do usuário obtido da autenticação:', userEmail);
-      
-      // Verificar se o ID corresponde ao email conhecido do master
-      if (userEmail === 'rst_86@hotmail.com') {
-        console.log('Usuário master identificado pelo email!');
-        
-        // Se não for possível obter do banco, criar um perfil default para o master
-        const masterProfile: UserProfile = {
-          id: userId,
-          email: userEmail,
-          name: 'Rafael Teixeira',
-          role: 'administrador',
-          created_at: new Date().toISOString(),
-          is_active: true
-        };
-        
-        console.log('=== ETAPA 1: CRIANDO PERFIL MASTER DE EMERGÊNCIA ===');
-        console.log('Perfil completo:', JSON.stringify(masterProfile, null, 2));
-        setProfile(masterProfile);
-        setLoading(false);
-        return;
-      }
-      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-        
-        // Se o usuário for reconhecido pelo email, evitar o modo de demonstração
-        if (userEmail) {
-          // Criar um perfil básico com o papel correto baseado no email
-          const defaultRole = userEmail.includes('admin') ? 'administrador' :
-                            userEmail.includes('gestor') ? 'gestor' :
-                            userEmail.includes('assist') ? 'assistente' : 'vendedor';
-                            
-          const defaultProfile: UserProfile = {
-            id: userId,
-            email: userEmail,
-            name: userEmail.split('@')[0],
-            role: defaultRole,
-            created_at: new Date().toISOString(),
-            is_active: true
-          };
-          
-          console.log('Criando perfil default baseado no email:', defaultProfile);
-          setProfile(defaultProfile);
-        }
-        setLoading(false);
+      if (error || !data) {
+        setProfile(null);
+        toast.error('Perfil do usuário não encontrado no banco de dados!');
         return;
       }
-
-      if (data) {
-        console.log('=== ETAPA 1: DADOS RECEBIDOS DO SUPABASE ===');
-        console.log('Perfil completo:', JSON.stringify(data, null, 2));
-        console.log('ID do usuário:', data.id);
-        console.log('Email do usuário:', data.email);
-        console.log('Nome do usuário:', data.name);
-        console.log('Role do usuário:', data.role);
-        console.log('============================================');
-        
-        setProfile(data as UserProfile);
-        console.log('Perfil definido no estado do AuthContext');
-      } else {
-        console.error('Perfil não encontrado para o usuário:', userId);
-        
-        // Se o usuário for reconhecido pelo email, criar um perfil default
-        if (userEmail) {
-          // Mesmo código de tratamento acima para criar um perfil padrão
-          const defaultRole: 'administrador' | 'gestor' | 'assistente' | 'vendedor' = 
-                            userEmail.includes('admin') ? 'administrador' :
-                            userEmail.includes('gestor') ? 'gestor' :
-                            userEmail.includes('assist') ? 'assistente' : 'vendedor';
-                            
-          const defaultProfile: UserProfile = {
-            id: userId,
-            email: userEmail,
-            name: userEmail.split('@')[0],
-            role: defaultRole,
-            created_at: new Date().toISOString(),
-            is_active: true
-          };
-          
-          console.log('Perfil não encontrado. Criando perfil default baseado no email:', defaultProfile);
-          setProfile(defaultProfile);
-        }
-      }
+      setProfile(data);
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
+      setProfile(null);
+      toast.error('Erro ao carregar perfil do usuário!');
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+
 
   // Função de login
   const signIn = async (email: string, password: string) => {
@@ -213,27 +113,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Verificar se é o usuário master baseado no email
-      if (email.toLowerCase().includes('master') || email.toLowerCase() === 'admin@okloteamento.com') {
-        console.log('Login detectado como usuário master');
-        // Forçar atualização do papel para master se for o email de admin
-        if (data.user) {
-          await supabase
-            .from('profiles')
-            .update({ role: 'master' })
-            .eq('id', data.user.id);
-        }
-      }
+
       
       // Usuário autenticado com sucesso
       toast.success('Login realizado com sucesso!');
 
       // Atualizar último login se o perfil estiver carregado
-      if (profile && profile.id) {
+      if (data.user && data.user.id) {
         await supabase
           .from('profiles')
           .update({ last_login: new Date().toISOString() })
-          .eq('id', profile.id);
+          .eq('id', data.user.id);
+        // Recarregar perfil do banco para garantir dados atualizados
+        await loadUserProfile(data.user.id);
       }
     } catch (error: any) {
       console.error('Erro no login:', error);
@@ -248,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     try {
       setLoading(true);
-      const result = await authService.registerUser(email, password, name, 'vendedor');
+      const result = await authService.registerUser(email, password, name, 'corretor');
       
       // Usuário registrado com sucesso
       toast.success('Registro realizado com sucesso! Verifique seu email.');
@@ -284,18 +176,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (profile && profile.role === 'administrador') return true;
     if (profile && profile.role === role) return true;
     
-    // Se não temos um perfil no estado, verificar o localStorage (modo de demonstração)
-    try {
-      const localUser = localStorage.getItem('user');
-      if (localUser) {
-        const userData = JSON.parse(localUser);
-        if (userData.role === 'master') return true;
-        if (userData.role === role) return true;
-      }
-    } catch (e) {
-      console.error('Erro ao verificar papel do usuário:', e);
-    }
-    
     return false;
   };
 
@@ -303,8 +183,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = (permission: keyof UserPermissions) => {
     if (!profile) return false;
     
-    // Administrador e Gestor têm todas as permissões
-    if (profile.role === 'administrador' || profile.role === 'gestor') return true;
+    // Administrador e Coordenador têm todas as permissões
+    if (profile.role === 'administrador' || profile.role === 'coordenador') return true;
     
     // Verificar permissão específica no objeto de permissões
     if (profile.permissions && profile.permissions[permission] !== undefined) {
@@ -312,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     // Permissões padrão baseadas no papel
-    // Administrador e Gestor já retornaram true acima, então agora verificamos Assistente
+    // Administrador e Coordenador já retornaram true acima, então agora verificamos Assistente
     if (profile.role === 'assistente') {
       const assistentePermissions: Record<keyof UserPermissions, boolean> = {
         view_dashboard: true,
@@ -329,8 +209,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // O papel 'administrador' já foi verificado acima e tem todas as permissões
     
-    if (profile.role === 'vendedor') {
-      const vendedorPermissions: Record<keyof UserPermissions, boolean> = {
+    if (profile.role === 'corretor') {
+      const corretorPermissions: Record<keyof UserPermissions, boolean> = {
         view_dashboard: true,
         view_loteamentos: true,
         manage_lotes: false,
@@ -340,7 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         send_notifications: false,
         use_chat: true
       };
-      return vendedorPermissions[permission] || false;
+      return corretorPermissions[permission] || false;
     }
     
     return false;

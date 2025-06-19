@@ -11,100 +11,16 @@ import LoteamentoMap, { Lote, LoteStatus } from '../../components/maps/Loteament
 // Mockup de imagem de mapa para demonstração
 const MAPA_PLACEHOLDER = 'https://via.placeholder.com/1200x800?text=Mapa+do+Loteamento';
 
-// Mock data para detalhes do loteamento
-const MOCK_LOTEAMENTOS = [
-  {
-    id: '1',
-    nome: 'Jardim das Flores',
-    cidade: 'São Paulo',
-    estado: 'SP',
-    endereco: 'Rua das Palmeiras, s/n - Jd. América',
-    descricao: 'Loteamento residencial em área nobre, com infraestrutura completa e áreas verdes.',
-    totalLotes: 120,
-    disponiveis: 60,
-    reservados: 20,
-    vendidos: 40,
-    infraestrutura: ['Asfalto', 'Água', 'Esgoto', 'Energia elétrica', 'Iluminação pública', 'Área de lazer'],
-    imagem: 'https://via.placeholder.com/1200x400?text=Jardim+das+Flores',
-  },
-  {
-    id: '2',
-    nome: 'Vale Verde',
-    cidade: 'Rio de Janeiro',
-    estado: 'RJ',
-    endereco: 'Av. Principal, 1000 - Recreio',
-    descricao: 'Condomínio fechado com segurança 24h, próximo a praia e comércio local.',
-    totalLotes: 85,
-    disponiveis: 40,
-    reservados: 15,
-    vendidos: 30,
-    infraestrutura: ['Asfalto', 'Água', 'Esgoto', 'Energia elétrica', 'Portaria 24h', 'Área de lazer', 'Piscina'],
-    imagem: 'https://via.placeholder.com/1200x400?text=Vale+Verde',
-  },
-];
-
-// Mock data para lotes
-const gerarLotesMock = (total: number): Lote[] => {
-  const lotes: Lote[] = [];
-  const status: LoteStatus[] = ['disponivel', 'reservado', 'vendido'];
-  const responsaveis = ['João Silva', 'Maria Oliveira', 'Carlos Santos', 'Ana Costa', 'Pedro Almeida'];
-  
-  for (let q = 0; q < 5; q++) {
-    const quadra = String.fromCharCode(65 + q); // A, B, C, D, E
-    
-    for (let i = 1; i <= total/5; i++) {
-      const numero = i.toString().padStart(2, '0');
-      const area = Math.floor(Math.random() * 200) + 200; // 200 a 400 m²
-      const valor = area * 600; // R$ 600 por m²
-      
-      // Distribuição dos status: 50% disponível, 25% reservado, 25% vendido
-      const randomStatus = Math.random();
-      let status: LoteStatus = 'disponivel';
-      let responsavel = undefined;
-      let dataReserva = undefined;
-      let dataVenda = undefined;
-      
-      if (randomStatus > 0.5 && randomStatus <= 0.75) {
-        status = 'reservado';
-        responsavel = responsaveis[Math.floor(Math.random() * responsaveis.length)];
-        
-        // Data de reserva nos últimos 3 dias
-        const dataRes = new Date();
-        dataRes.setDate(dataRes.getDate() - Math.floor(Math.random() * 3));
-        dataReserva = dataRes.toISOString().split('T')[0];
-      } else if (randomStatus > 0.75) {
-        status = 'vendido';
-        responsavel = responsaveis[Math.floor(Math.random() * responsaveis.length)];
-        
-        // Data de venda nos últimos 30 dias
-        const dataV = new Date();
-        dataV.setDate(dataV.getDate() - Math.floor(Math.random() * 30));
-        dataVenda = dataV.toISOString().split('T')[0];
-      }
-      
-      lotes.push({
-        id: `${quadra}${numero}`,
-        quadra,
-        numero,
-        area,
-        valor,
-        status,
-        responsavel,
-        dataReserva,
-        dataVenda,
-      });
-    }
-  }
-  
-  return lotes;
-};
+import { loteamentoService, loteService, Loteamento } from '../../services/supabase';
 
 const DetalhesLoteamentoPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [userRole, setUserRole] = useState<'administrador' | 'gestor' | 'assistente' | 'vendedor'>('vendedor');
+  const [userRole, setUserRole] = useState<'administrador' | 'coordenador' | 'assistente' | 'corretor'>('corretor');
   const [userName, setUserName] = useState('');
-  const [loteamento, setLoteamento] = useState(MOCK_LOTEAMENTOS[0]);
+  const [loteamento, setLoteamento] = useState<Loteamento | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
+  const [loadingLoteamento, setLoadingLoteamento] = useState(true);
+  const [loadingLotes, setLoadingLotes] = useState(true);
   const [selectedLote, setSelectedLote] = useState<Lote | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reservaLoading, setReservaLoading] = useState(false);
@@ -117,18 +33,21 @@ const DetalhesLoteamentoPage: React.FC = () => {
       setUserName(userData.name);
       setUserRole(userData.role as any);
     }
-    
-    // Carregar dados do loteamento específico
     if (id) {
-      const found = MOCK_LOTEAMENTOS.find(l => l.id === id);
-      if (found) {
-        setLoteamento(found);
-      }
+      setLoadingLoteamento(true);
+      loteamentoService.getLoteamento(id)
+        .then((data) => {
+          setLoteamento(data);
+        })
+        .finally(() => setLoadingLoteamento(false));
+      setLoadingLotes(true);
+      loteService.getLotes(id)
+        .then((data) => {
+          setLotes(data || []);
+        })
+        .finally(() => setLoadingLotes(false));
     }
-    
-    // Gerar lotes mock
-    setLotes(gerarLotesMock(loteamento.totalLotes));
-  }, [id, loteamento.totalLotes]);
+  }, [id]);
   
   const handleLoteClick = (lote: Lote) => {
     setSelectedLote(lote);
@@ -361,7 +280,7 @@ const DetalhesLoteamentoPage: React.FC = () => {
               </div>
             )}
             
-            {(userRole === 'administrador' || userRole === 'gestor') && selectedLote.status === 'reservado' && (
+            {(userRole === 'administrador' || userRole === 'coordenador') && selectedLote.status === 'reservado' && (
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Ações administrativas</h4>
                 <div className="flex space-x-3">

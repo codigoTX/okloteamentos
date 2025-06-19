@@ -13,9 +13,8 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'vendedor',
+
+    role: 'corretor',
     avatar_url: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -25,9 +24,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
       setFormData({
         name: user.name || '',
         email: user.email || '',
-        password: '',
-        confirmPassword: '',
-        role: user.role || 'vendedor',
+        role: user.role || 'corretor',
         avatar_url: user.avatar_url || '',
       });
     } else {
@@ -35,9 +32,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
       setFormData({
         name: '',
         email: '',
-        password: '',
-        confirmPassword: '',
-        role: 'vendedor',
+        role: 'corretor',
         avatar_url: '',
       });
     }
@@ -74,23 +69,6 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
       newErrors.email = 'Email inválido';
     }
     
-    // Validar senha apenas para novos usuários
-    if (!user) {
-      if (!formData.password) {
-        newErrors.password = 'Senha é obrigatória';
-      } else if (formData.password.length < 6) {
-        newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
-      }
-      
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'As senhas não coincidem';
-      }
-    } else if (formData.password && formData.password.length < 6) {
-      newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
-    } else if (formData.password && formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'As senhas não coincidem';
-    }
-    
     if (!formData.role) {
       newErrors.role = 'Perfil é obrigatório';
     }
@@ -113,13 +91,17 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
       role: formData.role,
       avatar_url: formData.avatar_url || null,
     };
-    
-    // Adicionar senha apenas se for fornecida
-    if (formData.password) {
-      Object.assign(userData, { password: formData.password });
+
+    // Gerar senha aleatória de 6 dígitos
+    function gerarSenhaAleatoria() {
+      return Math.random().toString(36).slice(-6);
     }
-    
-    onSave(userData);
+    let senhaGerada = gerarSenhaAleatoria();
+
+    // Enviar a senha junto com os dados
+    onSave({ ...userData, password: senhaGerada });
+    // Nenhum botão de configurações deve ser exibido neste modal
+
   };
 
   if (!isOpen) return null;
@@ -184,42 +166,6 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
             </div>
 
             <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {user ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha'}
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
-                  errors.password ? 'border-red-500 dark:border-red-500' : ''
-                }`}
-              />
-              {errors.password && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>}
-            </div>
-
-            <div className="mb-4">
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Confirmar Senha
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
-                  errors.confirmPassword ? 'border-red-500 dark:border-red-500' : ''
-                }`}
-              />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>
-              )}
-            </div>
-
-            <div className="mb-4">
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Perfil
               </label>
@@ -230,9 +176,11 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, onSave, user }) 
                 onChange={handleChange}
                 className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
-                <option value="gestor">Gestor</option>
-                <option value="assistente">Assistente</option>
-                <option value="vendedor">Vendedor</option>
+                <option value="administrador">Administrador</option>
+<option value="coordenador">Coordenador</option>
+<option value="assistente">Assistente</option>
+<option value="corretor">Corretor</option>
+
               </select>
               {errors.role && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.role}</p>}
             </div>

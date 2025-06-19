@@ -7,6 +7,7 @@ import { Lote } from '../../components/maps/LoteamentoMap';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import { useAuth } from '../../context/AuthContext';
+import { loteamentoService, loteService, userService } from '../../services/supabase';
 
 // Registrar componentes do Chart.js
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -26,10 +27,10 @@ type DashboardStats = {
 
 const DashboardPage: React.FC = () => {
   const { profile } = useAuth();
-  // Inicializar com null para representar estado não carregado
-  const [userRole, setUserRole] = useState<'administrador' | 'gestor' | 'assistente' | 'vendedor' | null>(null);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  // Inicializar com string vazia para garantir que só dados reais do banco sejam usados
+  const [userRole, setUserRole] = useState<'administrador' | 'coordenador' | 'assistente' | 'corretor'>('corretor');
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [stats, setStats] = useState<DashboardStats>({
     totalLotes: 0,
     lotesDisponiveis: 0,
@@ -89,48 +90,114 @@ const DashboardPage: React.FC = () => {
       }
     }
 
-    // Simulação de carregamento de dados
-    loadDashboardData();
+    // Carregar dados reais do dashboard
+    loadDashboardStats();
   }, [profile]);
 
-  // Simulação de carregamento de dados do dashboard
-  const loadDashboardData = () => {
-    // Em um cenário real, estes dados viriam de uma API
-    const mockStats: DashboardStats = {
-      totalLotes: 150,
-      lotesDisponiveis: 75,
-      lotesReservados: 25,
-      lotesVendidos: 50,
-      valorTotalVendas: 7500000,
-      vendasPorMes: [
-        { mes: 'Jan', quantidade: 3, valor: 450000 },
-        { mes: 'Fev', quantidade: 5, valor: 750000 },
-        { mes: 'Mar', quantidade: 4, valor: 600000 },
-        { mes: 'Abr', quantidade: 6, valor: 900000 },
-        { mes: 'Mai', quantidade: 8, valor: 1200000 },
-        { mes: 'Jun', quantidade: 7, valor: 1050000 },
-      ],
-      ultimasReservas: [
-        { id: 'r1', numero: '15', quadra: 'A', area: 250, valor: 150000, status: 'reservado', responsavel: 'João Silva', dataReserva: '2025-05-24' },
-        { id: 'r2', numero: '08', quadra: 'B', area: 300, valor: 180000, status: 'reservado', responsavel: 'Maria Oliveira', dataReserva: '2025-05-23' },
-        { id: 'r3', numero: '22', quadra: 'C', area: 275, valor: 165000, status: 'reservado', responsavel: 'Carlos Santos', dataReserva: '2025-05-22' },
-      ],
-      ultimasVendas: [
-        { id: 'v1', numero: '05', quadra: 'A', area: 250, valor: 150000, status: 'vendido', responsavel: 'Pedro Almeida', dataVenda: '2025-05-20' },
-        { id: 'v2', numero: '12', quadra: 'B', area: 320, valor: 192000, status: 'vendido', responsavel: 'Ana Costa', dataVenda: '2025-05-18' },
-        { id: 'v3', numero: '07', quadra: 'D', area: 280, valor: 168000, status: 'vendido', responsavel: 'Luiz Ferreira', dataVenda: '2025-05-15' },
-      ],
-      corretoresTop: [
-        { nome: 'Ana Costa', vendas: 8, valor: 1200000 },
-        { nome: 'Pedro Almeida', vendas: 6, valor: 900000 },
-        { nome: 'Luiz Ferreira', vendas: 5, valor: 750000 },
-        { nome: 'Maria Oliveira', vendas: 4, valor: 600000 },
-        { nome: 'João Silva', vendas: 3, valor: 450000 },
-      ],
-    };
+  // Função para buscar dados reais do dashboard
+  const loadDashboardStats = async () => {
+    try {
+      // Buscar todos os loteamentos ativos
+      const loteamentos = await loteamentoService.getLoteamentos();
+      let totalLotes = 0;
+      let lotesDisponiveis = 0;
+      let lotesReservados = 0;
+      let lotesVendidos = 0;
+      let valorTotalVendas = 0;
+      let vendasPorMes: { mes: string; quantidade: number; valor: number }[] = [];
+      let ultimasReservas: Lote[] = [];
+      let ultimasVendas: Lote[] = [];
+      let corretoresTop: { nome: string; vendas: number; valor: number }[] = [];
 
-    setStats(mockStats);
+      // Buscar todos os lotes de todos os loteamentos
+      let todosLotes: Lote[] = [];
+      for (const loteamento of loteamentos) {
+        const lotes = await loteService.getLotes(loteamento.id);
+        todosLotes = todosLotes.concat(lotes);
+      }
+
+      totalLotes = todosLotes.length;
+      lotesDisponiveis = todosLotes.filter(l => l.status === 'disponivel').length;
+      lotesReservados = todosLotes.filter(l => l.status === 'reservado').length;
+      lotesVendidos = todosLotes.filter(l => l.status === 'vendido').length;
+      valorTotalVendas = todosLotes.filter(l => l.status === 'vendido').reduce((acc, l) => acc + (l.valor || 0), 0);
+
+      // Vendas por mês (últimos 6 meses)
+      const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const vendasAgrupadas: { [key: string]: { quantidade: number; valor: number } } = {};
+      const agora = new Date();
+      for (const lote of todosLotes) {
+        if (lote.status === 'vendido' && lote.data_venda) {
+          const data = new Date(lote.data_venda);
+          const mes = meses[data.getMonth()];
+          const ano = data.getFullYear();
+          const chave = `${mes}/${ano}`;
+          if (!vendasAgrupadas[chave]) vendasAgrupadas[chave] = { quantidade: 0, valor: 0 };
+          vendasAgrupadas[chave].quantidade += 1;
+          vendasAgrupadas[chave].valor += lote.valor || 0;
+        }
+      }
+      vendasPorMes = Object.entries(vendasAgrupadas)
+        .sort((a, b) => {
+          const [mesA, anoA] = a[0].split('/');
+          const [mesB, anoB] = b[0].split('/');
+          if (anoA !== anoB) return Number(anoA) - Number(anoB);
+          return meses.indexOf(mesA) - meses.indexOf(mesB);
+        })
+        .map(([mesAno, dados]) => ({ mes: mesAno, quantidade: dados.quantidade, valor: dados.valor }));
+
+      // Últimas reservas e vendas
+      ultimasReservas = todosLotes
+        .filter(l => l.status === 'reservado' && l.dataReserva)
+        .sort((a, b) => (b.dataReserva || '').localeCompare(a.dataReserva || ''))
+        .slice(0, 3)
+        .map(l => ({ ...l, responsavel: l.responsavel || 'N/A', dataReserva: l.dataReserva }));
+      ultimasVendas = todosLotes
+        .filter(l => l.status === 'vendido' && l.dataVenda)
+        .sort((a, b) => (b.dataVenda || '').localeCompare(a.dataVenda || ''))
+        .slice(0, 3)
+        .map(l => ({ ...l, responsavel: l.responsavel || 'N/A', dataVenda: l.dataVenda }));
+
+      // Top corretores (por vendas)
+      const corretoresMap: { [nome: string]: { vendas: number; valor: number } } = {};
+      for (const lote of todosLotes) {
+        if (lote.status === 'vendido' && lote.responsavel) {
+          if (!corretoresMap[lote.responsavel]) corretoresMap[lote.responsavel] = { vendas: 0, valor: 0 };
+          corretoresMap[lote.responsavel].vendas += 1;
+          corretoresMap[lote.responsavel].valor += lote.valor || 0;
+        }
+      }
+      // Buscar nomes dos corretores
+      const corretoresIds = Object.keys(corretoresMap);
+      let corretoresPerfis: { id: string; name: string }[] = [];
+      if (corretoresIds.length > 0) {
+        const todosUsuarios = await userService.getUsers({ showInactive: true });
+        corretoresPerfis = todosUsuarios
+          .filter((u: any) => corretoresIds.includes(u.id))
+          .map((u: any) => ({ id: u.id, name: u.name }));
+      }
+      corretoresTop = corretoresIds.map(id => ({
+        nome: corretoresPerfis.find(c => c.id === id)?.name || id,
+        vendas: corretoresMap[id].vendas,
+        valor: corretoresMap[id].valor,
+      })).sort((a, b) => b.vendas - a.vendas).slice(0, 5);
+
+      setStats({
+        totalLotes,
+        lotesDisponiveis,
+        lotesReservados,
+        lotesVendidos,
+        valorTotalVendas,
+        vendasPorMes,
+        ultimasReservas,
+        ultimasVendas,
+        corretoresTop,
+      });
+    } catch (err) {
+      console.error('Erro ao carregar dados do dashboard:', err);
+    }
   };
+
 
   // Dados para o gráfico de pizza (status dos lotes)
   const pieData = {
@@ -178,22 +245,19 @@ const DashboardPage: React.FC = () => {
   console.log('Renderizando com userRole:', userRole, 'e userName:', userName);
   
   // Se o email for rst_86@hotmail.com ou contiver 'admin', forçar o papel como administrador
-  // Essa verificação garante que o usuário Rafael Teixeira (que sabemos que é administrador) sempre seja exibido corretamente
-  const effectiveRole = 
-    (userName?.toLowerCase() === 'rafael teixeira' || 
-     profile?.email?.toLowerCase() === 'rst_86@hotmail.com' || 
-     profile?.email?.toLowerCase().includes('admin')) ? 'administrador' : userRole;
-     
+  // Função utilitária para garantir apenas roles válidos
+  const allowedRoles = ['administrador', 'coordenador', 'assistente', 'corretor'] as const;
+  const effectiveRole = allowedRoles.includes(userRole as any) ? userRole : 'administrador';
+
   return (
     <MainLayout 
-      userRole={effectiveRole || 'administrador'} 
-      userName={userName} 
-      userEmail={userEmail} 
+      userRole={effectiveRole as 'administrador' | 'coordenador' | 'assistente' | 'corretor'}
+      userName={userName}
+      userEmail={userEmail}
       notificationCount={3}>
       <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-2xl font-bold leading-6 text-gray-900 dark:text-white">Dashboard</h3>
       </div>
-
       {/* Cards com números gerais */}
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-white dark:bg-gray-800">
@@ -257,133 +321,86 @@ const DashboardPage: React.FC = () => {
           </div>
         </Card>
       </div>
-
       {/* Gráficos e listas */}
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Gráfico de status de lotes */}
-        <Card title="Status dos Lotes">
-          <div className="h-64">
-            <Pie data={pieData} options={{ responsive: true, maintainAspectRatio: false }} />
-          </div>
-        </Card>
-
-        {/* Gráfico de vendas por mês */}
         <Card title="Vendas por Mês">
           <div className="h-64">
             <Bar data={barData} options={{ responsive: true, maintainAspectRatio: false }} />
           </div>
         </Card>
-
-        {/* Lista de últimas reservas */}
-        <Card title="Últimas Reservas">
-          <div className="overflow-hidden">
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {stats.ultimasReservas.map((lote) => (
-                <li key={lote.id} className="py-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        Lote {lote.quadra}-{lote.numero}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {lote.area} m² - {formatCurrency(lote.valor)}
-                      </p>
-                    </div>
-                    <div>
-                      <Badge variant="warning">Reservado</Badge>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex justify-between text-sm">
-                    <div className="text-gray-500 dark:text-gray-400">
-                      Por: {lote.responsavel}
-                    </div>
-                    <div className="text-gray-500 dark:text-gray-400">
-                      Data: {lote.dataReserva}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-
-        {/* Lista de últimas vendas */}
         <Card title="Últimas Vendas">
-          <div className="overflow-hidden">
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {stats.ultimasVendas.map((lote) => (
-                <li key={lote.id} className="py-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        Lote {lote.quadra}-{lote.numero}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {lote.area} m² - {formatCurrency(lote.valor)}
-                      </p>
-                    </div>
-                    <div>
-                      <Badge variant="danger">Vendido</Badge>
-                    </div>
+          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+            {stats.ultimasVendas.map((lote) => (
+              <li key={lote.id} className="py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      Lote {lote.quadra}-{lote.numero}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                      {lote.area} m² - {formatCurrency(lote.valor)}
+                    </p>
                   </div>
-                  <div className="mt-2 flex justify-between text-sm">
-                    <div className="text-gray-500 dark:text-gray-400">
-                      Por: {lote.responsavel}
-                    </div>
-                    <div className="text-gray-500 dark:text-gray-400">
-                      Data: {lote.dataVenda}
-                    </div>
+                  <div>
+                    <Badge variant="danger">Vendido</Badge>
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
+                <div className="mt-2 flex justify-between text-sm">
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Por: {lote.responsavel}
+                  </div>
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Data: {lote.dataVenda}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+      {/* Top corretores - visível apenas para Administrador e Coordenador */}
+      {(userRole === 'administrador' || userRole === 'coordenador') && (
+        <Card title="Top Corretores">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Corretor
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Vendas
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Valor Total
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Comissão (5%)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {stats.corretoresTop.map((corretor, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {corretor.nome}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {corretor.vendas}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {formatCurrency(corretor.valor)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {formatCurrency(corretor.valor * 0.05)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
-
-        {/* Top corretores - visível apenas para Administrador e Gestor */}
-        {(userRole === 'administrador' || userRole === 'gestor') && (
-          <Card title="Top Corretores" className="lg:col-span-2">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Corretor
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Vendas
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Valor Total
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Comissão (5%)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {stats.corretoresTop.map((corretor, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {corretor.nome}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {corretor.vendas}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {formatCurrency(corretor.valor)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {formatCurrency(corretor.valor * 0.05)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
-      </div>
+      )}
     </MainLayout>
   );
 };

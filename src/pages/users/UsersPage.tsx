@@ -21,11 +21,13 @@ const UsersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  // Novo estado para alternar entre ativos/inativos
+  const [showInactive, setShowInactive] = useState(false);
   
   // Estados do usuário atual para uso com o MainLayout
-  const [userRole, setUserRole] = useState<'administrador' | 'gestor' | 'assistente' | 'vendedor'>('vendedor');
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [userRole, setUserRole] = useState<'administrador' | 'coordenador' | 'assistente' | 'corretor'>('corretor');
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   
   // Carregar dados do usuário do AuthContext
   useEffect(() => {
@@ -51,7 +53,10 @@ const UsersPage: React.FC = () => {
       setUserEmail(profile.email || '');
       
       console.log('Definindo papel do usuário:', profile.role);
-      setUserRole(profile.role as any);
+      const allowedRoles = ['administrador', 'coordenador', 'assistente', 'corretor'];
+      const finalRole = allowedRoles.includes(profile.role) ? profile.role : 'corretor';
+      setUserRole(finalRole as 'administrador' | 'coordenador' | 'assistente' | 'corretor');
+      console.log('userRole FINAL atribuído:', finalRole);
     }
   }, [profile]);
   
@@ -59,71 +64,32 @@ const UsersPage: React.FC = () => {
     loadUsers();
   }, [session]);
 
-  // Dados de demonstração para quando o serviço falhar
-  const MOCK_USERS: UserProfile[] = [
-    {
-      id: '1',
-      email: 'administrador@okloteamento.com',
-      name: 'Administrador do Sistema',
-      role: 'administrador',
-      created_at: new Date().toISOString(),
-      is_active: true,
-      avatar_url: 'https://ui-avatars.com/api/?name=Administrador+Sistema&background=6366F1&color=fff',
-    },
-    {
-      id: '2',
-      email: 'gestor@okloteamento.com',
-      name: 'Gestor Principal',
-      role: 'gestor',
-      created_at: new Date().toISOString(),
-      is_active: true,
-      avatar_url: 'https://ui-avatars.com/api/?name=Gestor+Principal&background=22C55E&color=fff',
-    },
-    {
-      id: '3',
-      email: 'assistente@okloteamento.com',
-      name: 'Assistente Regional',
-      role: 'assistente',
-      created_at: new Date().toISOString(),
-      is_active: true,
-      avatar_url: 'https://ui-avatars.com/api/?name=Assistente+Regional&background=3B82F6&color=fff',
-    },
-    {
-      id: '4',
-      email: 'vendedor@okloteamento.com',
-      name: 'Vendedor Padrão',
-      role: 'vendedor',
-      created_at: new Date().toISOString(),
-      is_active: true,
-      avatar_url: 'https://ui-avatars.com/api/?name=Vendedor+Padrao&background=EAB308&color=fff',
-    },
-  ];
-
+  
   const loadUsers = async () => {
     try {
       setLoading(true);
-      try {
-        // Tentar carregar do Supabase
-        const data = await userService.getUsers();
-        // Filtrar para não mostrar administradores (antigo master)
-        const filteredData = data.filter(user => user.role !== 'administrador');
-        setUsers(filteredData);
-      } catch (supabaseError) {
-        console.warn('Erro ao carregar do Supabase, usando dados mock:', supabaseError);
-        // Falhou, usar dados de demonstração
-        // Filtrar para não mostrar administradores (antigo master)
-        const filteredMockUsers = MOCK_USERS.filter(user => user.role !== 'administrador');
-        setUsers(filteredMockUsers);
-        // Mostrar toast como alerta em vez de erro
-        toast.success('Usando dados de demonstração para apresentação da interface');
+      // Carregar do Supabase
+      let data;
+      if (profile?.role === 'administrador') {
+        data = await userService.getUsers({ showInactive });
+      } else {
+        data = await userService.getUsers();
       }
-    } catch (error) {
+      // Exibir todos os usuários cadastrados
+      setUsers(data.map(user => ({...user, role: user.role})));
+    } catch (error: any) {
       console.error('Erro ao carregar usuários:', error);
-      toast.error('Erro ao carregar lista de usuários');
+      if (error && error.message) {
+        toast.error('Erro ao carregar lista de usuários: ' + error.message);
+      } else {
+        toast.error('Erro ao carregar lista de usuários');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+
 
   const handleOpenModal = (user: UserProfile | null = null) => {
     setCurrentUser(user);
@@ -170,15 +136,10 @@ const UsersPage: React.FC = () => {
 
   const handleDeleteUser = async () => {
     if (!currentUser) return;
-    
     try {
-      // Aqui seria ideal ter uma função para deletar usuário no userService
-      // Por enquanto vamos apenas atualizar o status para inativo
-      await userService.updateProfile(currentUser.id, { 
-        role: 'inativo' as any // Isso é temporário, idealmente teríamos um campo is_active
-      });
+      await userService.updateProfile(currentUser.id, { is_active: false });
       toast.success('Usuário removido com sucesso!');
-      loadUsers();
+      setUsers((prev) => prev.filter((u) => u.id !== currentUser.id));
       handleCloseDeleteModal();
     } catch (error) {
       console.error('Erro ao remover usuário:', error);
@@ -187,12 +148,31 @@ const UsersPage: React.FC = () => {
   };
 
   // Verificar se o usuário atual pode gerenciar usuários
-  const canManageUsers = ['administrador', 'gestor'].includes(userRole);
+  const canManageUsers = ['administrador', 'coordenador'].includes(userRole);
   
-  if (!canManageUsers) {
+  // Botão/toggle para alternar ativos/inativos (visível só para admin)
+  const renderShowInactiveToggle = () => {
+    if (profile?.role !== 'administrador') return null;
+    return (
+      <div className="mb-4 flex items-center">
+        <label className="mr-2 font-medium">Exibir usuários inativos</label>
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={() => setShowInactive((prev) => !prev)}
+        />
+      </div>
+    );
+  };
+
+  const allowedRoles = ['administrador', 'coordenador', 'assistente', 'corretor'] as const;
+  if (!allowedRoles.includes(userRole)) {
     return (
       <MainLayout userRole={userRole} userName={userName} userEmail={userEmail} notificationCount={0}>
         <div className="p-6 max-w-4xl mx-auto">
+          <div className="mb-4 p-2 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-xs">
+            <strong>Debug:</strong> userRole = {userRole} | profile.role = {profile?.role}
+          </div>
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
             <div className="flex">
               <div className="flex-shrink-0">
@@ -210,9 +190,12 @@ const UsersPage: React.FC = () => {
     );
   }
 
+  const effectiveRole = allowedRoles.includes(userRole) ? userRole : 'corretor';
+
   return (
-    <MainLayout userRole={userRole} userName={userName} userEmail={userEmail} notificationCount={0}>
+    <MainLayout userRole={effectiveRole} userName={userName} userEmail={userEmail} notificationCount={0}>
       <div className="p-6 max-w-4xl mx-auto">
+        {renderShowInactiveToggle()}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Gerenciamento de Usuários</h1>
           <button
@@ -229,8 +212,8 @@ const UsersPage: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg w-full"><div className="overflow-x-auto">
+          <table className="table-auto w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -244,6 +227,9 @@ const UsersPage: React.FC = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Data de Criação
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Ações
@@ -280,21 +266,28 @@ const UsersPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${user.role === 'administrador' ? 'bg-purple-100 text-purple-800' : ''} 
-                      ${user.role === 'gestor' ? 'bg-green-100 text-green-800' : ''} 
-                      ${user.role === 'assistente' ? 'bg-blue-100 text-blue-800' : ''} 
-                      ${user.role === 'vendedor' ? 'bg-yellow-100 text-yellow-800' : ''}`}>
-                      {user.role === 'administrador' ? 'Administrador' : ''}
-                      {user.role === 'gestor' ? 'Gestor' : ''}
-                      {user.role === 'assistente' ? 'Assistente' : ''}
-                      {user.role === 'vendedor' ? 'Vendedor' : ''}
-                      {!['administrador', 'gestor', 'assistente', 'vendedor'].includes(user.role) ? user.role : ''}
+                      ${user.role === 'administrador' ? 'bg-purple-100 text-purple-800' : ''}
+                      ${user.role === 'coordenador' ? 'bg-green-100 text-green-800' : ''}
+                      ${user.role === 'assistente' ? 'bg-blue-100 text-blue-800' : ''}
+                      ${user.role === 'corretor' ? 'bg-yellow-100 text-yellow-800' : ''}`}>
+                      {user.role === 'administrador' && 'Administrador'}
+                      {user.role === 'coordenador' && 'Coordenador'}
+                      {user.role === 'assistente' && 'Assistente'}
+                      {user.role === 'corretor' && 'Corretor'}
+                      {!['administrador', 'coordenador', 'assistente', 'corretor'].includes(user.role) && user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                     {new Date(user.created_at).toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {user.is_active ? (
+                      <span className="text-green-600 font-semibold">Ativo</span>
+                    ) : (
+                      <span className="text-red-600 font-semibold">Inativo</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium min-w-[100px]">
                     <button
                       onClick={() => handleOpenModal(user)}
                       className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-3"
@@ -321,7 +314,7 @@ const UsersPage: React.FC = () => {
               )}
             </tbody>
           </table>
-        </div>
+        </div></div>
       )}
 
       {/* Modal para criar/editar usuário */}

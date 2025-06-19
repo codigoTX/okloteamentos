@@ -16,12 +16,12 @@ export type UserProfile = {
   id: string;
   email: string;
   name: string;
-  role: 'administrador' | 'gestor' | 'assistente' | 'vendedor';
+  role: 'administrador' | 'coordenador' | 'assistente' | 'corretor';
   avatar_url?: string;
   created_at: string;
   is_active?: boolean;
   last_login?: string;
-  gestor_id?: string | null;
+  coordenador_id?: string | null;
   permissions?: UserPermissions;
 };
 
@@ -81,20 +81,34 @@ export type FilaReserva = {
 
 // Funções de autenticação
 export const authService = {
-  // Registrar um novo usuário (para o Master criar novos usuários)
-  async registerUser(email: string, password: string, name: string, role: UserProfile['role']) {
+  // Registrar um novo usuário (para o administrador criar novos usuários)
+  async registerUser(email: string, password: string, name: string, role: UserProfile['role'], avatar_url?: string | null, coordenador_id?: string | null) {
+    // Validação extra para evitar erro 500
+    const validRoles = ['administrador', 'coordenador', 'assistente', 'corretor'];
+    if (!validRoles.includes(role)) {
+      throw new Error(`Role inválido: ${role}. Use apenas: ${validRoles.join(', ')}`);
+    }
+    // Apenas campos aceitos pelo Supabase Auth
+    const user_metadata: Record<string, string> = { name, role };
+    if (avatar_url && typeof avatar_url === 'string' && avatar_url.trim() !== '') user_metadata.avatar_url = avatar_url;
+    if (coordenador_id && typeof coordenador_id === 'string' && coordenador_id.trim() !== '') user_metadata.coordenador_id = coordenador_id;
+
+    // Log temporário para debug
+    console.log('Payload signup Supabase:', { email, password: '***', user_metadata });
+    console.log('user_metadata detalhado:', JSON.stringify(user_metadata));
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          name,
-          role,
-        },
+        data: user_metadata,
       },
     });
 
-    if (error) throw error;
+    if (error) {
+      // Expor mensagem detalhada do erro do Supabase
+      throw new Error('Supabase Auth error: ' + (error.message || JSON.stringify(error)));
+    }
     return data;
   },
 
@@ -145,7 +159,7 @@ export const loteamentoService = {
     return data as Loteamento;
   },
 
-  // Criar loteamento (apenas Master)
+  // Criar loteamento (apenas administrador)
   async createLoteamento(loteamento: Omit<Loteamento, 'id' | 'created_at' | 'created_by'>) {
     const user = await authService.getCurrentUser();
 
@@ -226,7 +240,7 @@ export const loteService = {
     return data as Lote;
   },
 
-  // Cancelar reserva (Gestor ou Administrador)
+  // Cancelar reserva (Coordenador ou Administrador)
   async cancelarReserva(loteId: string) {
     const { data, error } = await supabase
       .from('lotes')
@@ -245,7 +259,7 @@ export const loteService = {
     return data as Lote;
   },
 
-  // Aprovar venda (Gestor)
+  // Aprovar venda (Coordenador)
   async aprovarVenda(loteId: string) {
     const { data, error } = await supabase
       .from('lotes')
@@ -298,6 +312,16 @@ export const loteService = {
 
 // Funções para gerenciamento de usuários
 export const userService = {
+  // Buscar usuários por papel (role)
+  async getUsersByRole(role: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', role)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as UserProfile[];
+  },
   // Obter perfil do usuário
   async getUserProfile(userId: string) {
     const { data, error } = await supabase
@@ -310,13 +334,18 @@ export const userService = {
     return data as UserProfile;
   },
   
-  // Obter todos os usuários (para Master e Gestor)
-  async getUsers() {
-    const { data, error } = await supabase
+  // Obter todos os usuários (para administrador e Coordenador)
+  async getUsers({ showInactive = false }: { showInactive?: boolean } = {}) {
+    let query = supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (!showInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data as UserProfile[];
   },
@@ -334,40 +363,108 @@ export const userService = {
     return data as UserProfile;
   },
 
-  // Criar um novo usuário (Master e Gestor podem criar)
+  // Criar um novo usuário (administrador e Coordenador podem criar)
   async createUser(email: string, password: string, userData: Omit<UserProfile, 'id' | 'email' | 'created_at'>) {
+    // 0. Obter usuário logado para validação de permissão
+    const currentUser = await authService.getCurrentUser();
+    if (!currentUser) throw new Error('Usuário autenticado não encontrado.');
+    const { data: currentProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+    if (profileError || !currentProfile) throw new Error('Perfil do usuário autenticado não encontrado.');
+
+    // 1. Regras de criação de usuário
+    // Administrador pode criar qualquer usuário, mas Corretor/Assistente devem ter coordenador_id definido
+    // Coordenador só pode criar Corretor/Assistente com coordenador_id igual ao seu próprio id
+    // Ninguém pode criar Administrador via app
+    if (userData.role === 'administrador') {
+      throw new Error('Usuário Administrador só pode ser criado diretamente pelo Supabase Studio.');
+    }
+    if (currentProfile.role === 'coordenador') {
+      if (userData.role === 'coordenador') {
+        throw new Error('Coordenador não pode criar outro Coordenador.');
+      }
+      if (userData.role !== 'corretor' && userData.role !== 'assistente') {
+        throw new Error('Coordenador só pode criar usuários do tipo Corretor ou Assistente.');
+      }
+      // Força o coordenador_id ser o próprio id do coordenador logado
+      userData.coordenador_id = currentProfile.id;
+    }
+    if (currentProfile.role === 'administrador') {
+      if ((userData.role === 'corretor' || userData.role === 'assistente') && !userData.coordenador_id) {
+        throw new Error('Administrador deve selecionar um Coordenador para criar usuários do tipo Corretor ou Assistente.');
+      }
+    }
+    // (Opcional) Assistente e Corretor nunca podem criar outros usuários via app
+    if (currentProfile.role === 'assistente' || currentProfile.role === 'corretor') {
+      throw new Error('Você não tem permissão para criar usuários.');
+    }
     // 1. Criar o usuário na autenticação
-    const authResult = await authService.registerUser(email, password, userData.name, userData.role);
-    
-    // 2. Verificar se o usuário foi criado e retornar os dados
-    // O perfil deve ser criado automaticamente pelo trigger no Supabase
-    if (authResult.user) {
-      // 3. Atualizar campos adicionais que não são definidos no trigger
+    const authResult = await authService.registerUser(email, password, userData.name, userData.role, userData.avatar_url, userData.coordenador_id);
+
+    if (!authResult.user || !authResult.user.id) {
+      throw new Error('Erro ao criar usuário: Supabase Auth não retornou usuário válido.');
+    }
+
+    // 2. Aguarde até o perfil ser criado pelo trigger do Supabase
+    let profileData = null;
+    for (let i = 0; i < 8; i++) {
       const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authResult.user?.id)
+        .single();
+      if (!error && data) {
+        profileData = data;
+        break;
+      }
+      await new Promise(res => setTimeout(res, 400));
+    }
+
+    // 3. Se achou o perfil, faça o update dos campos extras
+    if (profileData) {
+      const { data: updated, error: updateError } = await supabase
         .from('profiles')
         .update({
           avatar_url: userData.avatar_url,
-          gestor_id: userData.gestor_id,
+          coordenador_id: userData.coordenador_id,
           permissions: userData.permissions || undefined,
           is_active: userData.is_active !== undefined ? userData.is_active : true
         })
         .eq('id', authResult.user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as UserProfile;
+        .select();
+      if (updateError) throw updateError;
+      return (updated && Array.isArray(updated) && updated.length > 0 ? updated[0] : profileData) as UserProfile;
     }
-    
-    throw new Error('Erro ao criar usuário');
+
+    // 4. Se não achou o perfil, tente inserir manualmente
+    const { data: insertData, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        id: authResult.user.id,
+        email: email,
+        name: userData.name,
+        role: userData.role,
+        avatar_url: userData.avatar_url || null,
+        coordenador_id: userData.coordenador_id || null,
+        permissions: userData.permissions || undefined,
+        is_active: userData.is_active !== undefined ? userData.is_active : true
+      })
+      .select();
+    if (insertError || !insertData || !Array.isArray(insertData) || insertData.length === 0) {
+      throw new Error('Perfil de usuário não encontrado após criação.');
+    }
+    return insertData[0] as UserProfile;
   },
 
   // Obter usuários gerenciados por um gestor específico
-  async getUsersByGestor(gestorId: string) {
+  async getUsersByCoordenador(gestorId: string) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('gestor_id', gestorId)
+      .eq('coordenador_id', gestorId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -417,6 +514,70 @@ export const userService = {
     });
     
     if (error) throw error;
+    return true;
+  },
+
+  // Criação sincronizada (Auth + profiles)
+  async createUserSynced(email: string, password: string, userData: Omit<UserProfile, 'id' | 'email' | 'created_at'>) {
+    // 1. Cria no Auth
+    const authResult = await authService.registerUser(email, password, userData.name, userData.role, userData.avatar_url, userData.coordenador_id);
+    if (!authResult.user || !authResult.user.id) {
+      throw new Error('Erro ao criar usuário: Supabase Auth não retornou usuário válido.');
+    }
+    // 2. Cria ou atualiza no profiles
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: authResult.user.id,
+        email,
+        name: userData.name,
+        role: userData.role,
+        avatar_url: userData.avatar_url || null,
+        coordenador_id: userData.coordenador_id || null,
+        permissions: userData.permissions || undefined,
+        is_active: userData.is_active !== undefined ? userData.is_active : true
+      })
+      .select()
+      .single();
+    if (profileError) throw profileError;
+    return profile;
+  },
+
+  // Edição sincronizada (Auth + profiles)
+  async updateUserSynced(userId: string, update: Partial<UserProfile> & { email?: string; password?: string }) {
+    // 1. Atualiza no Auth (nome, email ou senha)
+    const authUpdate: any = {};
+    if (update.email) authUpdate.email = update.email;
+    if (update.password) authUpdate.password = update.password;
+    if (update.name) authUpdate.data = { ...(authUpdate.data || {}), name: update.name };
+    if (update.role) authUpdate.data = { ...(authUpdate.data || {}), role: update.role };
+    if (update.avatar_url) authUpdate.data = { ...(authUpdate.data || {}), avatar_url: update.avatar_url };
+    if (Object.keys(authUpdate).length > 0) {
+      const { error: authError } = await supabase.auth.admin.updateUserById(userId, authUpdate);
+      if (authError) throw authError;
+    }
+    // 2. Atualiza no profiles
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .update(update)
+      .eq('id', userId)
+      .select()
+      .single();
+    if (profileError) throw profileError;
+    return profile;
+  },
+
+  // Deleção sincronizada (Auth + profiles)
+  async deleteUserSynced(userId: string) {
+    // 1. Remove do Auth
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) throw authError;
+    // 2. Remove do profiles
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+    if (profileError) throw profileError;
     return true;
   },
 };

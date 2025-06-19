@@ -47,7 +47,7 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
           use_chat: true,
         });
         setSelectedPreset('administrador');
-      } else if (user.role === 'vendedor') {
+      } else if (user.role === 'corretor') {
         setPermissions({
           view_dashboard: true,
           view_loteamentos: true,
@@ -58,7 +58,7 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
           send_notifications: false,
           use_chat: true,
         });
-        setSelectedPreset('vendedor');
+        setSelectedPreset('corretor');
       }
     }
   }, [user]);
@@ -86,7 +86,7 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
         send_notifications: true,
         use_chat: true,
       });
-    } else if (preset === 'vendedor') {
+    } else if (preset === 'corretor') {
       setPermissions({
         view_dashboard: true,
         view_loteamentos: true,
@@ -176,14 +176,14 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
                 
                 <button
                   type="button"
-                  onClick={() => applyPreset('vendedor')}
+                  onClick={() => applyPreset('corretor')}
                   className={`px-4 py-2 rounded-md text-sm font-medium border ${
-                    selectedPreset === 'vendedor'
+                    selectedPreset === 'corretor'
                       ? 'bg-indigo-600 text-white border-indigo-600'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'
                   }`}
                 >
-                  Vendedor
+                  Corretor
                 </button>
                 
                 <button

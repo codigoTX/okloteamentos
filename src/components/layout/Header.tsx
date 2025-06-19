@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { BellIcon, SunIcon, MoonIcon, UserCircleIcon } from '@heroicons/react/outline';
 
 type HeaderProps = {
   userName: string;
   userEmail?: string; // Adicionando propriedade para o email
   userRole: string;
-  userRoleKey?: 'administrador' | 'gestor' | 'assistente' | 'vendedor' | string;
+  userRoleKey?: 'administrador' | 'coordenador' | 'assistente' | 'corretor' | string;
   userAvatar?: string;
   notificationCount: number;
 };
@@ -18,6 +19,7 @@ const Header: React.FC<HeaderProps> = ({
   userAvatar,
   notificationCount,
 }) => {
+  const { signOut } = useAuth();
   console.log('=== ETAPA 4: RECEBENDO DADOS NO HEADER ===');
   console.log('Dados recebidos do MainLayout:');
   console.log('- userName:', userName);
@@ -178,13 +180,14 @@ const Header: React.FC<HeaderProps> = ({
                     >
                       Configurações
                     </a>
-                    <a
-                      href="#sair"
-                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    <button
+                      onClick={signOut}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       role="menuitem"
+                      type="button"
                     >
                       Sair
-                    </a>
+                    </button>
                   </div>
                 </div>
               )}

@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('administrador', 'gestor', 'assistente', 'vendedor')),
+  role TEXT NOT NULL CHECK (role IN ('administrador', 'coordenador', 'assistente', 'corretor')),
   avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   last_login TIMESTAMPTZ,
-  gestor_id UUID REFERENCES auth.users(id) NULL,
+  coordenador_id UUID REFERENCES auth.users(id) NULL,
   permissions JSONB DEFAULT '{"view_dashboard": true, "view_loteamentos": true}'
 );
 
@@ -30,7 +30,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'vendedor')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'corretor')
   );
   RETURN NEW;
 END;
@@ -128,13 +128,13 @@ CREATE POLICY "Administradores podem ver todos os perfis"
     )
   );
 
--- Usuários gestor podem ver perfis relacionados aos seus loteamentos
+-- Usuários coordenador podem ver perfis relacionados aos seus loteamentos
 CREATE POLICY "Gestor pode ver perfis relacionados"
   ON profiles FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'gestor'
+      WHERE profiles.id = auth.uid() AND profiles.role = 'coordenador'
     )
   );
 
@@ -182,34 +182,34 @@ CREATE POLICY "Todos podem ver lotes"
   ON lotes FOR SELECT
   USING (TRUE);
 
--- Apenas administrador e gestor podem criar lotes
-CREATE POLICY "Apenas administrador e gestor podem criar lotes"
+-- Apenas administrador e coordenador podem criar lotes
+CREATE POLICY "Apenas administrador e coordenador podem criar lotes"
   ON lotes FOR INSERT
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid() AND (profiles.role = 'master' OR profiles.role = 'gestor')
+      WHERE profiles.id = auth.uid() AND (profiles.role = 'master' OR profiles.role = 'coordenador')
     )
   );
 
--- Vendedores podem reservar lotes disponíveis
-CREATE POLICY "Vendedores podem reservar lotes disponíveis"
+-- Corretores podem reservar lotes disponíveis
+CREATE POLICY "Corretores podem reservar lotes disponíveis"
   ON lotes FOR UPDATE
   USING (
     status = 'disponivel' AND
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid() AND (
-        profiles.role = 'vendedor' OR 
+        profiles.role = 'corretor' OR 
         profiles.role = 'administrador' OR 
-        profiles.role = 'gestor' OR 
+        profiles.role = 'coordenador' OR 
         profiles.role = 'master'
       )
     )
   );
 
--- Gestores e administradores podem gerenciar lotes reservados
-CREATE POLICY "Gestores e administradores podem gerenciar lotes reservados"
+-- Coordenadores e administradores podem gerenciar lotes reservados
+CREATE POLICY "Coordenadores e administradores podem gerenciar lotes reservados"
   ON lotes FOR UPDATE
   USING (
     status = 'reservado' AND
@@ -217,7 +217,7 @@ CREATE POLICY "Gestores e administradores podem gerenciar lotes reservados"
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid() AND (
         profiles.role = 'administrador' OR 
-        profiles.role = 'gestor' OR 
+        profiles.role = 'coordenador' OR 
         profiles.role = 'master'
       )
     )
@@ -234,7 +234,7 @@ CREATE POLICY "Usuários podem ver suas próprias filas"
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid() AND (
         profiles.role = 'administrador' OR 
-        profiles.role = 'gestor' OR 
+        profiles.role = 'coordenador' OR 
         profiles.role = 'master'
       )
     )
@@ -274,13 +274,13 @@ CREATE POLICY "Usuários podem marcar suas notificações como lidas"
   ON notificacoes FOR UPDATE
   USING (usuario_id = auth.uid());
 
--- Master e gestores podem criar notificações para qualquer usuário
-CREATE POLICY "Master e gestores podem criar notificações"
+-- Master e coordenadores podem criar notificações para qualquer usuário
+CREATE POLICY "Master e coordenadores podem criar notificações"
   ON notificacoes FOR INSERT
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid() AND (profiles.role = 'master' OR profiles.role = 'gestor')
+      WHERE profiles.id = auth.uid() AND (profiles.role = 'master' OR profiles.role = 'coordenador')
     )
   );
 

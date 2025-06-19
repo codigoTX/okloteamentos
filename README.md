@@ -1,10 +1,10 @@
 # OK Loteamentos - Sistema de Gestão de Loteamentos Imobiliários
 
-## 📋 Sobre o Projeto
+## Sobre o Projeto
 
-OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários, desenvolvido para facilitar o controle, venda e acompanhamento de lotes em empreendimentos imobiliários. O sistema permite visualizar loteamentos em tempo real, gerenciar reservas e vendas, e manter comunicação entre todos os envolvidos no processo.
+OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários, desenvolvido para facilitar o controle, venda e acompanhamento de lotes em empreendimentos. O sistema permite visualizar a situação do loteamentos em tempo real, gerenciar reservas e vendas, e manter comunicação entre todos os envolvidos no processo.
 
-## 🧩 Estrutura do Sistema
+## Estrutura do Sistema
 
 ### Perfis de Usuários
 
@@ -14,21 +14,21 @@ OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários,
    - Criação de qualquer perfil de usuário
    - Acesso a todos os relatórios e logs
 
-2. **Gestor**
+2. **Coordenador**
    - Gestão de um ou mais loteamentos
-   - Cadastro de vendedores e assistentes
+   - Cadastro de corretores e assistentes
    - Aprovação ou cancelamento de vendas e reservas
 
 3. **Assistente**
-   - Auxiliar do Gestor com permissões atribuídas via checkbox
+   - Auxiliar do Coordenador com permissões atribuídas via checkbox
    - Pode cancelar reservas (se autorizado)
 
-4. **Vendedor**
+4. **Corretor**
    - Visualiza apenas os loteamentos atribuídos
    - Pode reservar até 3 lotes simultaneamente
    - Pode estar na fila de até 5 lotes
 
-## 🚀 Funcionalidades Principais
+## Funcionalidades Principais
 
 - **Visualização Interativa**: Mapa visual dos lotes com status por cores
 - **Sistema de Reservas**: Gerenciamento de reservas com prazo de validade
@@ -37,7 +37,7 @@ OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários,
 - **Chat Interno**: Comunicação entre os usuários do sistema
 - **Notificações**: Avisos por email, WhatsApp e no próprio sistema
 
-## 💻 Tecnologias Utilizadas
+## Tecnologias Utilizadas
 
 - **Frontend**: React com TypeScript e Tailwind CSS
 - **UI Components**: Headless UI e Hero Icons
@@ -45,7 +45,7 @@ OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários,
 - **Formulários**: Formik e Yup
 - **Notificações**: react-hot-toast
 
-## 🛠️ Instruções para Executar
+## Instruções para Executar
 
 ### Pré-requisitos
 - Node.js (versão 14 ou superior)
@@ -80,15 +80,15 @@ OK Loteamentos é um sistema de gestão completo para loteamentos imobiliários,
 4. Acesse o sistema no navegador:
    [http://localhost:3000](http://localhost:3000)
 
-## 📱 Acessos para Teste
+## Acessos para Teste
 
 Utilize os seguintes emails com qualquer senha (mínimo 6 caracteres):
 
 - **admin@oklotes.com** - Acesso Administrador (administrador do sistema)
-- **gestor@oklotes.com** - Acesso Gestor (cliente que contratou o sistema)
-- **assistente@oklotes.com** - Acesso Assistente (auxiliar do gestor)
-- **vendedor@oklotes.com** - Acesso Vendedor (corretor imobiliário)
+- **coordenador@oklotes.com** - Acesso Coordenador (cliente que contratou o sistema)
+- **assistente@oklotes.com** - Acesso Assistente (auxiliar do coordenador)
+- **corretor@oklotes.com** - Acesso Corretor (corretor imobiliário)
 
-## 📝 Licença
+## Licença
 
 Desenvolvido como sistema experimental para fins de demonstração.

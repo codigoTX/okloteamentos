@@ -13,9 +13,10 @@ import {
   MenuIcon,
   XIcon
 } from '@heroicons/react/outline';
+import SidebarUserDropdown from './SidebarUserDropdown';
 
 type SidebarProps = {
-  userRole: 'administrador' | 'gestor' | 'assistente' | 'vendedor';
+  userRole: 'administrador' | 'coordenador' | 'assistente' | 'corretor';
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ userRole }) => {
@@ -28,12 +29,12 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole }) => {
 
   // Define menu items based on user role
   const menuItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['administrador', 'gestor', 'assistente', 'vendedor'] },
-    { name: 'Loteamentos', href: '/loteamentos', icon: MapIcon, roles: ['administrador', 'gestor', 'assistente', 'vendedor'] },
-    { name: 'Gerenciar Usuários', href: '/usuarios', icon: UsersIcon, roles: ['administrador', 'gestor'] },
-    { name: 'Mensagens', href: '/chat', icon: ChatIcon, roles: ['administrador', 'gestor', 'assistente', 'vendedor'] },
-    { name: 'Relatórios', href: '/relatorios', icon: ChartBarIcon, roles: ['administrador', 'gestor'] },
-    { name: 'Configurações', href: '/configuracoes', icon: CogIcon, roles: ['administrador', 'gestor'] },
+    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, roles: ['administrador', 'coordenador', 'assistente', 'corretor'] },
+    { name: 'Loteamentos', href: '/loteamentos', icon: MapIcon, roles: ['administrador', 'coordenador', 'assistente', 'corretor'] },
+    { name: 'Gerenciar Usuários', href: '/usuarios', icon: UsersIcon, roles: ['administrador', 'coordenador'] },
+    { name: 'Mensagens', href: '/chat', icon: ChatIcon, roles: ['administrador', 'coordenador', 'assistente', 'corretor'] },
+    { name: 'Relatórios', href: '/relatorios', icon: ChartBarIcon, roles: ['administrador', 'coordenador'] },
+    { name: 'Configurações', href: '/configuracoes', icon: CogIcon, roles: ['administrador', 'coordenador'] },
   ];
 
   // Filter menu items based on user role
@@ -92,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole }) => {
         } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Sidebar header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between h-16 px-4 border-b dark:border-gray-700 border-gray-200">
           <div className="flex items-center">
             {!collapsed && (
               <span className="text-xl font-semibold text-primary-600">OK Loteamentos</span>
@@ -101,16 +102,19 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole }) => {
               <span className="text-xl font-semibold text-primary-600">OK</span>
             )}
           </div>
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-md text-gray-500 hover:text-gray-900 dark:hover:text-white focus:outline-none hidden lg:block"
-          >
-            {collapsed ? (
-              <MenuIcon className="h-6 w-6" />
-            ) : (
-              <XIcon className="h-6 w-6" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <SidebarUserDropdown />
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-md text-gray-500 hover:text-gray-900 dark:hover:text-white focus:outline-none hidden lg:block"
+            >
+              {collapsed ? (
+                <MenuIcon className="h-6 w-6" />
+              ) : (
+                <XIcon className="h-6 w-6" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Sidebar content */}
@@ -143,24 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({ userRole }) => {
           </nav>
         </div>
 
-        {/* Sidebar footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className={`group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white w-full ${isLoggingOut ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {isLoggingOut ? (
-              <div className="mr-4 flex-shrink-0 h-6 w-6 animate-spin rounded-full border-2 border-t-transparent border-gray-400"></div>
-            ) : (
-              <LogoutIcon
-                className="mr-4 flex-shrink-0 h-6 w-6 text-gray-400 dark:text-gray-400 group-hover:text-gray-500"
-                aria-hidden="true"
-              />
-            )}
-            {!collapsed && <span>{isLoggingOut ? 'Saindo...' : 'Sair'}</span>}
-          </button>
-        </div>
+
       </aside>
     </>
   );

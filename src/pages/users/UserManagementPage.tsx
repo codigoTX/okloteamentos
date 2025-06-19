@@ -47,9 +47,9 @@ const UserManagementPage: React.FC = () => {
         data = await userService.getUsers();
       } 
       // Se for Gestor, carregar apenas seus usuários
-      else if (isRole('gestor') && profile) {
+      else if (isRole('coordenador') && profile) {
         // Primeiro carrega seus administradores e vendedores
-        const managedUsers = await userService.getUsersByGestor(profile.id);
+        const managedUsers = await userService.getUsersByCoordenador(profile.id);
         
         // Adiciona o próprio gestor à lista
         const ownProfile = await userService.getUserProfile(profile.id);
@@ -114,41 +114,54 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
+  const gerarSenhaAleatoria = () => {
+    return Math.random().toString(36).slice(-6);
+  }
+
   const handleSaveUser = async (userData: any) => {
+    let senhaGerada = '';
     try {
       if (selectedUser) {
         // Atualizar usuário existente
         await userService.updateProfile(selectedUser.id, userData);
         toast.success('Usuário atualizado com sucesso!');
       } else {
+        senhaGerada = gerarSenhaAleatoria();
+
         // Criar novo usuário com o gestor atual como responsável
-        const gestorId = profile?.role === 'gestor' ? profile.id : null;
+        const gestorId = profile?.role === 'coordenador' ? profile.id : null;
         
         const defaultPermissions: UserPermissions = {
           view_dashboard: true,
           view_loteamentos: true,
-          manage_lotes: userData.role === 'administrador',
+          manage_lotes: false,
           manage_users: false,
-          view_reports: userData.role === 'administrador',
-          manage_reservations: userData.role === 'administrador' || userData.role === 'vendedor',
-          send_notifications: userData.role === 'administrador',
+          view_reports: false,
+          manage_reservations: true,
+          send_notifications: false,
           use_chat: true,
         };
-        
-        await userService.createUser(userData.email, userData.password, {
-          name: userData.name,
-          role: userData.role,
-          avatar_url: userData.avatar_url,
-          gestor_id: gestorId,
-          permissions: defaultPermissions,
-          is_active: true
-        });
-        
+
+        const newUser = await userService.createUserSynced(
+          userData.email,
+          senhaGerada,
+          {
+            ...userData,
+            coordenador_id: gestorId,
+            permissions: defaultPermissions,
+            is_active: true,
+          }
+        );
+
+        // Enviar e-mail personalizado com a senha
+        // Função backend criada em src/services/emailService.ts
+        const { sendWelcomeEmail } = await import('../../services/emailService');
+        await sendWelcomeEmail({ to: userData.email, password: senhaGerada });
+
         toast.success('Usuário criado com sucesso!');
+        loadUsers();
+        handleCloseUserModal();
       }
-      
-      loadUsers();
-      handleCloseUserModal();
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error);
       toast.error(error.message || 'Erro ao salvar usuário');
@@ -220,12 +233,12 @@ const UserManagementPage: React.FC = () => {
   console.log('Debug permissões:', { 
     profile, 
     isMaster: isRole('master'), 
-    isGestor: isRole('gestor'),
+    isGestor: isRole('coordenador'),
     localData: isMasterFromLocalStorage 
   });
   
   // Verificar permissões para acessar esta página
-  if (!isRole('master') && !isRole('gestor') && !isMasterFromLocalStorage) {
+  if (!isRole('master') && !isRole('coordenador') && !isMasterFromLocalStorage) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
@@ -238,7 +251,7 @@ const UserManagementPage: React.FC = () => {
                 Você não tem permissão para acessar esta página. Entre em contato com um administrador.
               </p>
               <p className="text-sm text-red-700 mt-2">
-                Debug: role={profile?.role || 'undefined'}, isMaster={isRole('master').toString()}, isGestor={isRole('gestor').toString()}
+                Debug: role={profile?.role || 'undefined'}, isMaster={isRole('master').toString()}, isGestor={isRole('coordenador').toString()}
               </p>
             </div>
           </div>
@@ -295,9 +308,9 @@ const UserManagementPage: React.FC = () => {
             >
               <option value="">Todos os Perfis</option>
               {isRole('master') && <option value="master">Master</option>}
-              <option value="gestor">Gestor</option>
+              
               <option value="administrador">Administrador</option>
-              <option value="vendedor">Vendedor</option>
+              
             </select>
           </div>
         </div>
@@ -344,139 +357,129 @@ const UserManagementPage: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden w-full">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table className="table-auto w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
               <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Usuário
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Perfil
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Criado em
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
+  <tr>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Usuário
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Perfil
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Coordenador
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Status
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Criado em
+    </th>
+    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      Ações
+    </th>
+  </tr>
+</thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                      Nenhum usuário encontrado
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${!(user.is_active ?? true) ? 'bg-gray-100 dark:bg-gray-900' : ''}`}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            {user.avatar_url ? (
-                              <img
-                                className="h-10 w-10 rounded-full object-cover"
-                                src={user.avatar_url}
-                                alt={user.name}
-                              />
-                            ) : (
-                              <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                                <UserIcon className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {user.name}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {user.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${user.role === 'administrador' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : ''} 
-                          ${user.role === 'gestor' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''} 
-                          ${user.role === 'assistente' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''} 
-                          ${user.role === 'vendedor' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ''}`}>
-                          {user.role === 'administrador' ? 'Administrador' : ''}
-                          {user.role === 'gestor' ? 'Gestor' : ''}
-                          {user.role === 'assistente' ? 'Assistente' : ''}
-                          {user.role === 'vendedor' ? 'Vendedor' : ''}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${(user.is_active ?? true) ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
-                          {(user.is_active ?? true) ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
-                          {/* Botão de Editar */}
-                          <button
-                            onClick={() => handleOpenUserModal(user)}
-                            className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                            title="Editar usuário"
-                          >
-                            <PencilIcon className="h-5 w-5" />
-                          </button>
-                          
-                          {/* Botão de Permissões - apenas para administradores e vendedores */}
-                          {(user.role === 'administrador' || user.role === 'vendedor') && (
-                            <button
-                              onClick={() => handleOpenPermissionsModal(user)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                              title="Gerenciar permissões"
-                            >
-                              <ShieldCheckIcon className="h-5 w-5" />
-                            </button>
-                          )}
-                          
-                          {/* Botão de Ativar/Desativar - não mostra para Administrador */}
-                          {user.role !== 'administrador' && (
-                            <button
-                              onClick={() => handleToggleUserStatus(user)}
-                              className={`${(user.is_active ?? true) 
-                                ? 'text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300' 
-                                : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'}`}
-                              title={(user.is_active ?? true) ? 'Suspender usuário' : 'Reativar usuário'}
-                            >
-                              {(user.is_active ?? true) ? (
-                                <BanIcon className="h-5 w-5" />
-                              ) : (
-                                <CheckCircleIcon className="h-5 w-5" />
-                              )}
-                            </button>
-                          )}
-                          
-                          {/* Botão de Excluir - não mostra para Administrador ou próprio usuário */}
-                          {user.role !== 'administrador' && user.id !== profile?.id && (
-                            <button
-                              onClick={() => handleOpenDeleteModal(user)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Excluir usuário"
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
+  {filteredUsers.length === 0 ? (
+    <tr>
+      <td colSpan={6} className="px-6 py-4 text-center text-gray-400">Nenhum usuário encontrado.</td>
+    </tr>
+  ) : (
+    filteredUsers.map(user => {
+      let coordenador = null;
+      if ((user.role === 'assistente' || user.role === 'corretor') && user.coordenador_id) {
+        coordenador = users.find(u => u.id === user.coordenador_id) || null;
+      }
+      return (
+        <tr key={user.id}>
+          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+            {user.name}
+            <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+              ${user.role === 'administrador' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : ''} 
+              ${user.role === 'coordenador' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''} 
+              ${user.role === 'assistente' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''} 
+              ${user.role === 'corretor' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ''}`}>
+              {user.role === 'administrador' ? 'Administrador' : ''}
+              {user.role === 'coordenador' ? 'Coordenador' : ''}
+              {user.role === 'assistente' ? 'Assistente' : ''}
+              {user.role === 'corretor' ? 'Corretor' : ''}
+            </span>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            {(user.role === 'assistente' || user.role === 'corretor') && coordenador ? (
+              <span title={coordenador.email} className="text-sm text-gray-900 dark:text-white">{coordenador.name} <span className="text-xs text-gray-500">({coordenador.email})</span></span>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+              ${(user.is_active ?? true) ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+              {(user.is_active ?? true) ? 'Ativo' : 'Inativo'}
+            </span>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+            {new Date(user.created_at).toLocaleDateString('pt-BR')}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium min-w-[100px]">
+            <div className="flex justify-end space-x-2">
+              {/* Botão de Editar */}
+              <button
+                onClick={() => handleOpenUserModal(user)}
+                className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                title="Editar usuário"
+              >
+                <PencilIcon className="h-5 w-5" />
+              </button>
+              {/* Botão de Permissões - apenas para administradores e corretores */}
+              {(user.role === 'administrador' || user.role === 'corretor') && (
+                <button
+                  onClick={() => handleOpenPermissionsModal(user)}
+                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                  title="Gerenciar permissões"
+                >
+                  <ShieldCheckIcon className="h-5 w-5" />
+                </button>
+              )}
+              {/* Botão de Ativar/Desativar - não mostra para Administrador */}
+              {user.role !== 'administrador' && (
+                <button
+                  onClick={() => handleToggleUserStatus(user)}
+                  className={`${(user.is_active ?? true) 
+                    ? 'text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300' 
+                    : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'}`}
+                  title={(user.is_active ?? true) ? 'Suspender usuário' : 'Reativar usuário'}
+                >
+                  {(user.is_active ?? true) ? (
+                    <BanIcon className="h-5 w-5" />
+                  ) : (
+                    <CheckCircleIcon className="h-5 w-5" />
+                  )}
+                </button>
+              )}
+              {/* Botão de Excluir - não mostra para Administrador ou próprio usuário */}
+              {user.role !== 'administrador' && user.id !== profile?.id && (
+                <button
+                  onClick={() => handleOpenDeleteModal(user)}
+                  className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                  title="Excluir usuário"
+                >
+                  <TrashIcon className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          </td>
+        </tr>
+      );
+    })
+  )}
+</tbody>
             </table>
           </div>
         </div>
@@ -489,7 +492,7 @@ const UserManagementPage: React.FC = () => {
           onClose={handleCloseUserModal}
           onSave={handleSaveUser}
           user={selectedUser}
-          currentUserRole={profile?.role || 'vendedor'}
+          currentUserRole={profile?.role || 'corretor'}
         />
       )}
 

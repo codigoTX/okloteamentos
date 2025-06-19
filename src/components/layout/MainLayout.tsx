@@ -4,7 +4,7 @@ import Sidebar from './Sidebar';
 
 type MainLayoutProps = {
   children: React.ReactNode;
-  userRole: 'administrador' | 'gestor' | 'assistente' | 'vendedor';
+  userRole: 'administrador' | 'coordenador' | 'assistente' | 'corretor';
   userName: string;
   userEmail?: string; // Adicionando propriedade para o email
   notificationCount: number;
@@ -25,17 +25,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
   // Converter userRole para um tipo compatível com userRoleKey do Header
   // Isso garante que apenas valores válidos sejam passados
-  const getCompatibleRole = (role: typeof userRole): 'administrador' | 'gestor' | 'assistente' | 'vendedor' => {
+  const getCompatibleRole = (role: 'administrador' | 'coordenador' | 'assistente' | 'corretor'): 'administrador' | 'coordenador' | 'assistente' | 'corretor' => {
     console.log('Convertendo papel:', role);
-    // Garantir que o valor retornado é um dos valores válidos para userRoleKey
     switch(role) {
       case 'administrador': return 'administrador';
-      case 'gestor': return 'gestor';
+      case 'coordenador': return 'coordenador';
       case 'assistente': return 'assistente';
-      case 'vendedor': return 'vendedor';
-      default: 
-        console.log('Papel não reconhecido, usando fallback vendedor');
-        return 'vendedor'; // fallback seguro
+      case 'corretor': return 'corretor';
+      default:
+        console.log('Papel não reconhecido, usando fallback corretor');
+        return 'corretor';
     }
   };
   
@@ -56,10 +55,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   // Map user role to a display name
   const roleDisplay = {
     administrador: 'Administrador',
-    gestor: 'Gestor',
+    coordenador: 'Coordenador',
     assistente: 'Assistente',
-    vendedor: 'Vendedor',
-  }[correctedRole || 'vendedor'];
+    corretor: 'Corretor',
+  }[correctedRole || 'corretor'];
   
   console.log('Nome do papel para exibição (roleDisplay):', roleDisplay);
 

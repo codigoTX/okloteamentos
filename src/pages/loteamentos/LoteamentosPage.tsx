@@ -6,60 +6,30 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 
-// Mock data de loteamentos para demonstração
-const MOCK_LOTEAMENTOS = [
-  {
-    id: '1',
-    nome: 'Jardim das Flores',
-    cidade: 'São Paulo',
-    estado: 'SP',
-    totalLotes: 120,
-    disponiveis: 60,
-    reservados: 20,
-    vendidos: 40,
-    imagem: 'https://via.placeholder.com/300x200?text=Jardim+das+Flores',
-  },
-  {
-    id: '2',
-    nome: 'Vale Verde',
-    cidade: 'Rio de Janeiro',
-    estado: 'RJ',
-    totalLotes: 85,
-    disponiveis: 40,
-    reservados: 15,
-    vendidos: 30,
-    imagem: 'https://via.placeholder.com/300x200?text=Vale+Verde',
-  },
-  {
-    id: '3',
-    nome: 'Parque das Árvores',
-    cidade: 'Belo Horizonte',
-    estado: 'MG',
-    totalLotes: 150,
-    disponiveis: 80,
-    reservados: 25,
-    vendidos: 45,
-    imagem: 'https://via.placeholder.com/300x200?text=Parque+das+Arvores',
-  },
-  {
-    id: '4',
-    nome: 'Recanto do Sol',
-    cidade: 'Brasília',
-    estado: 'DF',
-    totalLotes: 100,
-    disponiveis: 50,
-    reservados: 20,
-    vendidos: 30,
-    imagem: 'https://via.placeholder.com/300x200?text=Recanto+do+Sol',
-  },
-];
+import { loteamentoService } from '../../services/supabase';
 
 const LoteamentosPage: React.FC = () => {
   const { profile, loading } = useAuth();
-  const [userRole, setUserRole] = useState<'administrador' | 'gestor' | 'assistente' | 'vendedor'>('vendedor');
+  const [userRole, setUserRole] = useState<'administrador' | 'coordenador' | 'assistente' | 'corretor'>('corretor');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [loteamentos, setLoteamentos] = useState(MOCK_LOTEAMENTOS);
+  const [loteamentos, setLoteamentos] = useState<any[]>([]);
+  const [loadingLoteamentos, setLoadingLoteamentos] = useState(true);
+
+  useEffect(() => {
+    async function fetchLoteamentos() {
+      setLoadingLoteamentos(true);
+      try {
+        const data = await loteamentoService.getLoteamentos();
+        setLoteamentos(data || []);
+      } catch (err) {
+        setLoteamentos([]);
+      } finally {
+        setLoadingLoteamentos(false);
+      }
+    }
+    fetchLoteamentos();
+  }, []);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Carregar dados do usuário do AuthContext
